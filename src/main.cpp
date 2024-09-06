@@ -25,14 +25,19 @@ limitations under the License.
 // using STL for cross platform sleep
 #include <thread>
 #include <cstdio>
+#include <string>
 
 // NatNet SDK includes
 #include "NatNetTypes.h"
 #include "NatNetCAPI.h"
 #include "NatNetClient.h"
 
+#define VERBOSE
+#undef VERBOSE
+
 void NATNET_CALLCONV DataHandler(sFrameOfMocapData* data, void* pUserData);    // receives data from the server
 void PrintData(sFrameOfMocapData* data, NatNetClient* pClient);
+void LogData(const sFrameOfMocapData* data);
 void PrintDataDescriptions(sDataDescriptions* pDataDefs);
 
 NatNetClient* g_pClient = nullptr;
@@ -133,7 +138,10 @@ int main(int argc, char* argv[])
 void NATNET_CALLCONV DataHandler(sFrameOfMocapData* data, void* pUserData)
 {
     NatNetClient* pClient = (NatNetClient*)pUserData;
+#ifdef VERBOSE
     PrintData(data, pClient);
+#endif
+    LogData(data);
 
     return;
 }
@@ -185,6 +193,7 @@ void PrintDataDescriptions(sDataDescriptions* pDataDefs)
                 }
             }
         }
+        /* we don't have these under current license 
         else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_Skeleton)
         {
             // Skeleton
@@ -258,6 +267,7 @@ void PrintDataDescriptions(sDataDescriptions* pDataDefs)
             for (int iChannel = 0; iChannel < pDevice->nChannels; iChannel++)
                 printf("\tChannel %d : %s\n", iChannel, pDevice->szChannelNames[iChannel]);
         }
+        */
         else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_Camera)
         {
             // Camera
@@ -306,6 +316,7 @@ void PrintData(sFrameOfMocapData* data, NatNetClient* pClient)
             data->RigidBodies[i].qw);
     }
 
+    /* we don't have these under current license
     // Skeletons
     printf("------------------------\n");
     printf("Skeletons [ Count = %d ]\n", data->nSkeletons);
@@ -353,6 +364,7 @@ void PrintData(sFrameOfMocapData* data, NatNetClient* pClient)
                 assetID, markerID, marker.size, marker.x, marker.y, marker.z, marker.residual * 1000.0f);
         }
     }
+    */
 
     // Labeled markers - this includes all markers (Active, Passive, and 'unlabeled' (markers with no asset but a PointCloud ID)
     bool bUnlabeled;    // marker is 'unlabeled', but has a point cloud ID that matches Motive PointCloud ID (In Motive 3D View)
@@ -377,6 +389,7 @@ void PrintData(sFrameOfMocapData* data, NatNetClient* pClient)
             szMarkerType, modelID, markerID, marker.size, marker.x, marker.y, marker.z);
     }
 
+    /* we don't have these under current license
     // Force plates
     printf("------------------------\n");
     printf("Force Plates [ Count = %d ]\n", data->nForcePlates);
@@ -413,5 +426,29 @@ void PrintData(sFrameOfMocapData* data, NatNetClient* pClient)
                 printf("%3.2f\t", data->Devices[iDevice].ChannelData[iChannel].Values[iSample]);
             printf("\n");
         }
+    }
+    */
+}
+
+/**
+ * \brief Log the data to a file.
+ * 
+ * \param data
+ */
+void LogData(const sFrameOfMocapData* data) 
+{
+    for (int i = 0; i < data->nRigidBodies; i++)
+    {
+        std::string filename = "rigid_body_" + std::string(g_pDataDefs->arrDataDescriptions[i].Data.RigidBodyDescription->szName) + ".csv";
+        FILE* fp = NULL;
+        fopen_s(&fp, filename.c_str(), "a");
+        if (fp)
+        {
+            fprintf(fp, "%d,%4.7f,%2.9f,%2.9f,%2.9f,%1.10f,%1.10f,%1.10f,%1.10f\n",
+                data->RigidBodies[i].ID, data->fTimestamp, 
+                data->RigidBodies[i].x, data->RigidBodies[i].y, data->RigidBodies[i].z,
+                data->RigidBodies[i].qx, data->RigidBodies[i].qy, data->RigidBodies[i].qz, data->RigidBodies[i].qw);
+        }
+        fclose(fp);
     }
 }
