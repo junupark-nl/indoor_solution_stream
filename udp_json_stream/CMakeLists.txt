@@ -11,6 +11,6 @@ add_executable(${PROJECT_NAME}_listener src/listener.cpp)
 add_executable(${PROJECT_NAME}_talker src/talker.cpp)
 
 if (WIN32)
-    target_link_libraries(${PROJECT_NAME}_listener ws2_32)
-    target_link_libraries(${PROJECT_NAME}_talker ws2_32)
+    target_link_libraries(${PROJECT_NAME}_listener wsock32 ws2_32)
+    target_link_libraries(${PROJECT_NAME}_talker wsock32 ws2_32)
 endif()
