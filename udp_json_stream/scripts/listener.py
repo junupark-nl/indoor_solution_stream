@@ -11,7 +11,7 @@ arg_parser.add_argument('--port', type=int, default=5005, help='Port to listen o
 class JsonLogger:
     def __init__(self):
         now = datetime.datetime.now()
-        filepath = os.path.join(os.path.dirname(__file__), "..", "logs", f"{now.strftime('%Y-%m-%d')}")
+        filepath = os.path.join(os.path.dirname(__file__), "..", "..", "logs", "json_udp", f"{now.strftime('%Y-%m-%d')}")
         if not os.path.exists(filepath):
             os.makedirs(filepath)
 
@@ -51,7 +51,6 @@ def listener(server_address: tuple):
     sock.bind(server_address)
     
     logger = JsonLogger()
-    print("hi")
     
     try:
         while True:
