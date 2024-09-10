@@ -7,7 +7,7 @@
  *********************************************************************/
 
  /*
-Copyright � 2012 NaturalPoint Inc.
+Copyright 2012 NaturalPoint Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,8 +24,17 @@ limitations under the License.
 
 // using STL for cross platform sleep
 #include <thread>
+#include <iostream>
+#include <fstream>
+#include <sstream>
 #include <cstdio>
 #include <string>
+#include <iomanip>
+#include <stdexcept>
+#include <unordered_map>
+#include <atomic>
+#include <csignal>
+#include <chrono>
 
 // NatNet SDK includes
 #include "NatNetTypes.h"
@@ -35,15 +44,30 @@ limitations under the License.
 #define VERBOSE
 #undef VERBOSE
 
+/**
+ * @brief A wrapper data structure of sFrameOfMocapData with a timestamp.
+ */
+struct TimeStampedFrameData {
+    std::chrono::steady_clock::time_point arrivalTime;
+    const sFrameOfMocapData* frameData;
+};
+
 void NATNET_CALLCONV DataHandler(sFrameOfMocapData* data, void* pUserData);    // receives data from the server
 void PrintData(sFrameOfMocapData* data, NatNetClient* pClient);
-void LogData(const sFrameOfMocapData* data);
+void LogData(const TimeStampedFrameData* data);
 void PrintDataDescriptions(sDataDescriptions* pDataDefs);
 
 NatNetClient* g_pClient = nullptr;
 sNatNetClientConnectParams g_connectParams;
 sServerDescription g_serverDescription;
 sDataDescriptions* g_pDataDefs = nullptr;
+std::atomic<bool> g_running = true;
+
+void signal_handler(int signal) {
+    g_running = false;
+    std::cout << "Received signal [" << signal << "]. Shutting down..." << std::endl;
+}
+
 
 /**
  * \brief Minimal client example.
@@ -54,6 +78,9 @@ sDataDescriptions* g_pDataDefs = nullptr;
  */
 int main(int argc, char* argv[])
 {
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+    
     ErrorCode ret = ErrorCode_OK;
 
     // Create a NatNet client
@@ -68,7 +95,12 @@ int main(int argc, char* argv[])
     g_connectParams.connectionType = ConnectionType_Multicast;
 
     // Connect to Motive
-    ret = g_pClient->Connect(g_connectParams);
+    try {
+        ret = g_pClient->Connect(g_connectParams);
+    } catch (...) {
+        std::cerr << "Error connecting to Motive: " << std::endl;
+        return 1;
+    }
     if (ret != ErrorCode_OK)
     {
         // Connection failed
@@ -103,9 +135,10 @@ int main(int argc, char* argv[])
     }
 
     printf("\nClient is connected and listening for data...\n");
+    printf("Press Ctrl+C to exit.\n");
     
     // do something on the main app's thread...
-    while (true)
+    while (g_running)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
@@ -115,6 +148,7 @@ int main(int argc, char* argv[])
     {
         g_pClient->Disconnect();
         delete g_pClient;
+        g_pClient = nullptr;
     }
     
     if (g_pDataDefs)
@@ -137,11 +171,26 @@ int main(int argc, char* argv[])
  */
 void NATNET_CALLCONV DataHandler(sFrameOfMocapData* data, void* pUserData)
 {
-    NatNetClient* pClient = (NatNetClient*)pUserData;
+    if (!g_running) {
+        return;
+    }
+
+    try {
+        auto arrivalTime = std::chrono::steady_clock::now();
+        NatNetClient* pClient = (NatNetClient*)pUserData;
+
 #ifdef VERBOSE
-    PrintData(data, pClient);
+        PrintData(data, pClient);
 #endif
-    LogData(data);
+        TimeStampedFrameData timestampedData{arrivalTime, data};
+        LogData(&timestampedData);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error in DataHandler: " << e.what() << std::endl;
+    }
+    catch (...) {
+        std::cerr << "Unknown error in DataHandler" << std::endl;
+    }
 
     return;
 }
@@ -193,81 +242,6 @@ void PrintDataDescriptions(sDataDescriptions* pDataDefs)
                 }
             }
         }
-        /* we don't have these under current license 
-        else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_Skeleton)
-        {
-            // Skeleton
-            sSkeletonDescription* pSK = pDataDefs->arrDataDescriptions[i].Data.SkeletonDescription;
-            printf("Skeleton Name : %s\n", pSK->szName);
-            printf("Skeleton ID : %d\n", pSK->skeletonID);
-            printf("RigidBody (Bone) Count : %d\n", pSK->nRigidBodies);
-            for (int j = 0; j < pSK->nRigidBodies; j++)
-            {
-                sRigidBodyDescription* pRB = &pSK->RigidBodies[j];
-                printf("  RigidBody Name : %s\n", pRB->szName);
-                printf("  RigidBody ID : %d\n", pRB->ID);
-                printf("  RigidBody Parent ID : %d\n", pRB->parentID);
-                printf("  Parent Offset : %3.2f,%3.2f,%3.2f\n", pRB->offsetx, pRB->offsety, pRB->offsetz);
-            }
-        }
-        else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_Asset)
-        {
-            // Trained Markerset
-            sAssetDescription* pAsset = pDataDefs->arrDataDescriptions[i].Data.AssetDescription;
-            printf("Trained Markerset Name : %s\n", pAsset->szName);
-            printf("Asset ID : %d\n", pAsset->AssetID);
-
-            // Trained Markerset Rigid Bodies
-            printf("Trained Markerset RigidBody (Bone) Count : %d\n", pAsset->nRigidBodies);
-            for (int j = 0; j < pAsset->nRigidBodies; j++)
-            {
-                sRigidBodyDescription* pRB = &pAsset->RigidBodies[j];
-                printf("  RigidBody Name : %s\n", pRB->szName);
-                printf("  RigidBody ID : %d\n", pRB->ID);
-                printf("  RigidBody Parent ID : %d\n", pRB->parentID);
-                printf("  Parent Offset : %3.2f,%3.2f,%3.2f\n", pRB->offsetx, pRB->offsety, pRB->offsetz);
-            }
-
-            // Trained Markerset Markers
-            printf("Trained Markerset Marker Count : %d\n", pAsset->nMarkers);
-            for (int j = 0; j < pAsset->nMarkers; j++)
-            {
-                sMarkerDescription marker = pAsset->Markers[j];
-                int modelID, markerID;
-                NatNet_DecodeID(marker.ID, &modelID, &markerID);
-                printf("  Marker Name : %s\n", marker.szName);
-                printf("  Marker ID   : %d\n", markerID);
-            }
-        }
-        else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_ForcePlate)
-        {
-            // Force Plate
-            sForcePlateDescription* pFP = pDataDefs->arrDataDescriptions[i].Data.ForcePlateDescription;
-            printf("Force Plate ID : %d\n", pFP->ID);
-            printf("Force Plate Serial : %s\n", pFP->strSerialNo);
-            printf("Force Plate Width : %3.2f\n", pFP->fWidth);
-            printf("Force Plate Length : %3.2f\n", pFP->fLength);
-            printf("Force Plate Electrical Center Offset (%3.3f, %3.3f, %3.3f)\n", pFP->fOriginX, pFP->fOriginY, pFP->fOriginZ);
-            for (int iCorner = 0; iCorner < 4; iCorner++)
-                printf("Force Plate Corner %d : (%3.4f, %3.4f, %3.4f)\n", iCorner, pFP->fCorners[iCorner][0], pFP->fCorners[iCorner][1], pFP->fCorners[iCorner][2]);
-            printf("Force Plate Type : %d\n", pFP->iPlateType);
-            printf("Force Plate Data Type : %d\n", pFP->iChannelDataType);
-            printf("Force Plate Channel Count : %d\n", pFP->nChannels);
-            for (int iChannel = 0; iChannel < pFP->nChannels; iChannel++)
-                printf("\tChannel %d : %s\n", iChannel, pFP->szChannelNames[iChannel]);
-        }
-        else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_Device)
-        {
-            // Peripheral Device
-            sDeviceDescription* pDevice = pDataDefs->arrDataDescriptions[i].Data.DeviceDescription;
-            printf("Device Name : %s\n", pDevice->strName);
-            printf("Device Serial : %s\n", pDevice->strSerialNo);
-            printf("Device ID : %d\n", pDevice->ID);
-            printf("Device Channel Count : %d\n", pDevice->nChannels);
-            for (int iChannel = 0; iChannel < pDevice->nChannels; iChannel++)
-                printf("\tChannel %d : %s\n", iChannel, pDevice->szChannelNames[iChannel]);
-        }
-        */
         else if (pDataDefs->arrDataDescriptions[i].type == Descriptor_Camera)
         {
             // Camera
@@ -316,56 +290,6 @@ void PrintData(sFrameOfMocapData* data, NatNetClient* pClient)
             data->RigidBodies[i].qw);
     }
 
-    /* we don't have these under current license
-    // Skeletons
-    printf("------------------------\n");
-    printf("Skeletons [ Count = %d ]\n", data->nSkeletons);
-    for (int i = 0; i < data->nSkeletons; i++)
-    {
-        sSkeletonData skData = data->Skeletons[i];
-        printf("Skeleton [ID=%d  Bone count=%d]\n", skData.skeletonID, skData.nRigidBodies);
-        for (int j = 0; j < skData.nRigidBodies; j++)
-        {
-            sRigidBodyData rbData = skData.RigidBodyData[j];
-            printf("Bone %d\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\n",
-                rbData.ID, rbData.x, rbData.y, rbData.z, rbData.qx, rbData.qy, rbData.qz, rbData.qw);
-        }
-    }
-
-    // Trained Markerset Data (Motive 3.1 / NatNet 4.1 and later)
-    printf("------------------------\n");
-    printf("Assets [Count=%d]\n", data->nAssets);
-    for (int i = 0; i < data->nAssets; i++)
-    {
-        sAssetData asset = data->Assets[i];
-        printf("Trained Markerset [ID=%d  Bone count=%d   Marker count=%d]\n",
-            asset.assetID, asset.nRigidBodies, asset.nMarkers);
-
-        // Trained Markerset Rigid Bodies
-        for (int j = 0; j < asset.nRigidBodies; j++)
-        {
-            // note : Trained markerset ids are of the form:
-            // parent markerset ID  : high word (upper 16 bits of int)
-            // rigid body id        : low word  (lower 16 bits of int)
-            int assetID, rigidBodyID;
-            sRigidBodyData rbData = asset.RigidBodyData[j];
-            NatNet_DecodeID(rbData.ID, &assetID, &rigidBodyID);
-            printf("Bone %d\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\t%3.2f\n",
-                rigidBodyID, rbData.x, rbData.y, rbData.z, rbData.qx, rbData.qy, rbData.qz, rbData.qw);
-        }
-
-        // Trained Markerset markers
-        for (int j = 0; j < asset.nMarkers; j++)
-        {
-            sMarker marker = asset.MarkerData[j];
-            int assetID, markerID;
-            NatNet_DecodeID(marker.ID, &assetID, &markerID);
-            printf("Marker [AssetID=%d, MarkerID=%d] [size=%3.2f] [pos=%3.2f,%3.2f,%3.2f] [residual(mm)=%.4f]\n",
-                assetID, markerID, marker.size, marker.x, marker.y, marker.z, marker.residual * 1000.0f);
-        }
-    }
-    */
-
     // Labeled markers - this includes all markers (Active, Passive, and 'unlabeled' (markers with no asset but a PointCloud ID)
     bool bUnlabeled;    // marker is 'unlabeled', but has a point cloud ID that matches Motive PointCloud ID (In Motive 3D View)
     bool bActiveMarker; // marker is an actively labeled LED marker
@@ -388,46 +312,6 @@ void PrintData(sFrameOfMocapData* data, NatNetClient* pClient)
         printf("%s Marker [ModelID=%d, MarkerID=%d] [size=%3.2f] [pos=%3.2f,%3.2f,%3.2f]\n",
             szMarkerType, modelID, markerID, marker.size, marker.x, marker.y, marker.z);
     }
-
-    /* we don't have these under current license
-    // Force plates
-    printf("------------------------\n");
-    printf("Force Plates [ Count = %d ]\n", data->nForcePlates);
-    for (int iPlate = 0; iPlate < data->nForcePlates; iPlate++)
-    {
-        printf("Force Plate %d\n", data->ForcePlates[iPlate].ID);
-        for (int iChannel = 0; iChannel < data->ForcePlates[iPlate].nChannels; iChannel++)
-        {
-            printf("\tChannel %d:\t", iChannel);
-            if (data->ForcePlates[iPlate].ChannelData[iChannel].nFrames == 0)
-            {
-                printf("\tEmpty Frame\n");
-            }
-            for (int iSample = 0; iSample < data->ForcePlates[iPlate].ChannelData[iChannel].nFrames; iSample++)
-                printf("%3.2f\t", data->ForcePlates[iPlate].ChannelData[iChannel].Values[iSample]);
-            printf("\n");
-        }
-    }
-
-    // Peripheral Devices (e.g. NIDAQ, Glove, EMG)
-    printf("------------------------\n");
-    printf("Devices [ Count = %d ]\n", data->nDevices);
-    for (int iDevice = 0; iDevice < data->nDevices; iDevice++)
-    {
-        printf("Device %d\n", data->Devices[iDevice].ID);
-        for (int iChannel = 0; iChannel < data->Devices[iDevice].nChannels; iChannel++)
-        {
-            printf("\tChannel %d:\t", iChannel);
-            if (data->Devices[iDevice].ChannelData[iChannel].nFrames == 0)
-            {
-                printf("\tEmpty Frame\n");
-            }
-            for (int iSample = 0; iSample < data->Devices[iDevice].ChannelData[iChannel].nFrames; iSample++)
-                printf("%3.2f\t", data->Devices[iDevice].ChannelData[iChannel].Values[iSample]);
-            printf("\n");
-        }
-    }
-    */
 }
 
 /**
@@ -435,20 +319,57 @@ void PrintData(sFrameOfMocapData* data, NatNetClient* pClient)
  * 
  * \param data
  */
-void LogData(const sFrameOfMocapData* data) 
+void LogData(const TimeStampedFrameData* timestampedData) 
 {
-    for (int i = 0; i < data->nRigidBodies; i++)
-    {
-        std::string filename = "rigid_body_" + std::string(g_pDataDefs->arrDataDescriptions[i].Data.RigidBodyDescription->szName) + ".csv";
-        FILE* fp = NULL;
-        fopen_s(&fp, filename.c_str(), "a");
-        if (fp)
-        {
-            fprintf(fp, "%d,%4.7f,%2.9f,%2.9f,%2.9f,%1.10f,%1.10f,%1.10f,%1.10f\n",
-                data->RigidBodies[i].ID, data->fTimestamp, 
-                data->RigidBodies[i].x, data->RigidBodies[i].y, data->RigidBodies[i].z,
-                data->RigidBodies[i].qx, data->RigidBodies[i].qy, data->RigidBodies[i].qz, data->RigidBodies[i].qw);
+    static std::unordered_map<std::string, std::ofstream> file_streams;
+
+    try{
+        const auto &data = timestampedData->frameData;
+        const auto &arrivalTime = timestampedData->arrivalTime;
+
+        auto micros = std::chrono::duration_cast<std::chrono::microseconds>(arrivalTime.time_since_epoch()).count();
+
+        for (int i = 0; i < data->nRigidBodies; i++) {
+            const auto& rigid_body = data->RigidBodies[i];
+            const std::string rigid_body_name = std::string(g_pDataDefs->arrDataDescriptions[i].Data.RigidBodyDescription->szName);
+            std::string filename = "rigid_body_" + rigid_body_name + ".csv";
+
+            // Open the file stream if it's not already open
+            if (!file_streams.count(filename)) {
+                file_streams[filename].open(filename, std::ios::app);
+                if (!file_streams[filename]) {
+                    std::cerr << "Failed to open file: " << filename << std::endl;
+                    continue;
+                }
+                // Write header if it's a new file
+                if (file_streams[filename].tellp() == 0) {
+                    file_streams[filename] << "ArrivalTimeUs,ID,Timestamp,X,Y,Z,QX,QY,QZ,QW\n";
+                }
+            }
+
+            // Prepare the data string
+            std::ostringstream oss;
+            oss << micros << ','
+                << rigid_body_name << ','
+                << std::fixed << std::setprecision(7) << data->fTimestamp << ','
+                << std::setprecision(9) << rigid_body.x << ','
+                << rigid_body.y << ','
+                << rigid_body.z << ','
+                << std::setprecision(10) << rigid_body.qx << ','
+                << rigid_body.qy << ','
+                << rigid_body.qz << ','
+                << rigid_body.qw << '\n';
+
+            // Write to the file
+            file_streams[filename] << oss.str();
+
+            // Check for write errors
+            if (!file_streams[filename]) {
+                std::cerr << "Failed to write to file: " << filename << std::endl;
+            }
         }
-        fclose(fp);
+    }
+    catch (const std::exception& e) {
+        std::cerr << "Error in LogData: " << e.what() << std::endl;
     }
 }
