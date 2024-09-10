@@ -4,7 +4,7 @@ project(OptitrackStreaming)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(NATNET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/NatNetSDK")
+set(NATNET_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../library/NatNetSDK")
 
 if(WIN32)
     set(NATNET_LIB_DIR "${NATNET_DIR}/lib/windows")
