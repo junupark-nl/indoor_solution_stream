@@ -1,9 +1,11 @@
 import os
 import datetime
+import time
 import socket
 import csv
 import json
 import argparse
+from collections import OrderedDict
 
 arg_parser = argparse.ArgumentParser()
 arg_parser.add_argument('--ip', type=str, default='127.0.0.1', help='IP address to listen on')
@@ -31,8 +33,8 @@ class JsonLogger:
         if not self.initialized:
             self.initialize(flattened_msg)
         with open(self.filename, "a", newline='') as file:
-            self.writer = csv.DictWriter(file, fieldnames=self.fieldnames)
-            self.writer.writerow(flattened_msg)
+            writer = csv.DictWriter(file, fieldnames=self.fieldnames)
+            writer.writerow(flattened_msg)
     
     def flatten(self, msg, parent_key='', sep='.'):
         items = []
@@ -40,11 +42,11 @@ class JsonLogger:
             new_key = f"{parent_key}{sep}{k}" if parent_key else k
             if isinstance(v, dict):
                 items.extend(self.flatten(v, new_key, sep=sep).items())
-            if isinstance(v, list):
+            elif isinstance(v, list):
                 items.append((new_key, json.dumps(v)))
             else:
                 items.append((new_key, v))
-        return dict(items)
+        return OrderedDict(items)
 
 def listener(server_address: tuple):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -54,13 +56,17 @@ def listener(server_address: tuple):
     
     try:
         while True:
-            data, address = sock.recvfrom(4096)
+            data, _ = sock.recvfrom(4096)
+            arrival_time_us = int(time.perf_counter() * 1_000_000)
             
             try:
                 message = json.loads(data.decode('utf-8'))
-                print("Received JSON message:")
+                ordered_message = OrderedDict([('ArrivalTimeUs', arrival_time_us)])
+                ordered_message.update(message)
+                
+                print("Received JSON message (with manual time tagged):")
                 print(json.dumps(message, indent=2))
-                logger.log(message)
+                logger.log(ordered_message)
             except json.JSONDecodeError:
                 print('Invalid JSON')
             except UnicodeDecodeError:

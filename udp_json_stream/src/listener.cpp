@@ -64,6 +64,7 @@ std::string get_current_timestamp_filename(const std::string &relative_base_dir=
 
 void flatten_json(const json& j, std::string prefix, json& result) {
     for (auto& el : j.items()) {
+        // concatenate the key with the parent structure key using dot
         std::string new_key = prefix.empty() ? el.key() : prefix + "." + el.key();
         if (el.value().is_object()) {
             flatten_json(el.value(), new_key, result);
@@ -73,12 +74,15 @@ void flatten_json(const json& j, std::string prefix, json& result) {
     }
 }
 
-std::string escape_csv(const std::string& s) {
+std::string escape_csv(const std::string& str) {
     std::ostringstream oss;
     oss << '"';
-    for (auto c : s) {
-        if (c == '"') oss << '"' << '"';
-        else oss << c;
+    for (auto c : str) {
+        if (c == '"') {
+            oss << '"' << '"';
+        } else {
+            oss << c;
+        }
     }
     oss << '"';
     return oss.str();
@@ -95,6 +99,9 @@ void write_csv_line(std::ofstream& file, const json& j, const std::vector<std::s
             } else {
                 file << escape_csv(value.dump());
             }
+        } else {
+            // Write an empty string if the key is not found
+            file << "";
         }
         if (i < keys.size() - 1) file << ",";
     }
@@ -139,9 +146,11 @@ void udp_listener(const std::string& ip, int port) {
         return;
     }
 
-    std::cout << "Starting UDP listener on " << ip << " port " << port << "\n";
     std::string csv_filename = get_current_timestamp_filename("../../../logs/json_udp");
+#ifdef VERBOSE
+    std::cout << "Starting UDP listener on " << ip << " port " << port << "\n";
     std::cout << "CSV filename: " << csv_filename << std::endl;
+#endif
 
     std::ofstream csv_file(csv_filename);
     if (!csv_file.is_open()) {
@@ -172,6 +181,8 @@ void udp_listener(const std::string& ip, int port) {
             continue;
         }
 
+        auto arrivalTime = std::chrono::steady_clock::now();
+        auto micros = std::chrono::duration_cast<std::chrono::microseconds>(arrivalTime.time_since_epoch()).count();
         char client_ip[INET_ADDRSTRLEN];
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
         try {
@@ -181,6 +192,8 @@ void udp_listener(const std::string& ip, int port) {
 #endif
             json flattened;
             flatten_json(message, "", flattened);
+            // manual time tag
+            flattened["ArrivalTimeUs"] = micros;
 
             if (!header_written) {
                 for (auto& item : flattened.items()) {
@@ -200,9 +213,7 @@ void udp_listener(const std::string& ip, int port) {
             csv_file.flush();
         }
         catch (json::parse_error&) {
-#ifdef VERBOSE
-            std::cout << "Invalid JSON message\n";
-#endif
+            std::cerr << "Invalid JSON message\n";
         }
     }
 
