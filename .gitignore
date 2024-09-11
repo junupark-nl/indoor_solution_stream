@@ -1,2 +1,8 @@
+*.csv
+*.CSV
+
 build/
-**/build/
+**/build*
+
+.vscode/
+.idea/
