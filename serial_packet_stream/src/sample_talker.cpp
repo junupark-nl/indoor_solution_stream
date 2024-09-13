@@ -1,9 +1,32 @@
 #include <iostream>
-#include <iomanip>
-#include <boost/asio.hpp>
-#include <boost/bind.hpp>
-#include <vector>
-#include <string>
+#include <cstdlib>  // For std::rand()
+
+#include "util.h"
+
+// Function to send data packet (preamble + 3 floats + checksum)
+void sendPacket(boost::asio::serial_port& serial, float val1, float val2, float val3) {
+    std::vector<uint8_t> packet;
+
+    // Add preambles
+    packet.push_back(0x59);
+    packet.push_back(0x35);
+
+    // Convert floats to bytes and add them to the packet
+    std::vector<uint8_t> bytesVal1 = util::floatToBytes(val1);
+    std::vector<uint8_t> bytesVal2 = util::floatToBytes(val2);
+    std::vector<uint8_t> bytesVal3 = util::floatToBytes(val3);
+
+    packet.insert(packet.end(), bytesVal1.begin(), bytesVal1.end());
+    packet.insert(packet.end(), bytesVal2.begin(), bytesVal2.end());
+    packet.insert(packet.end(), bytesVal3.begin(), bytesVal3.end());
+
+    // Calculate checksum (excluding the checksum byte itself)
+    uint8_t checksum = util::calculateChecksum(packet);
+    packet.push_back(checksum);
+
+    // Send packet through serial port
+    boost::asio::write(serial, boost::asio::buffer(packet));
+}
 
 int main(int argc, char* argv[]) {
     if (argc != 3) {
@@ -11,27 +34,38 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Parse command line arguments
     std::string port = argv[1];
-    int baudRate = std::stoi(argv[2]);
-
-    // Create an I/O service
+    unsigned int baudRate = std::stoi(argv[2]);
     boost::asio::io_service io;
+    boost::asio::serial_port serial(io);
 
-    // Create a serial port object
-    boost::asio::serial_port serial(io, port);
-    serial.set_option(boost::asio::serial_port_base::baud_rate(baudRate));
+    try {
+        util::setupSerialPort(io, serial, port, baudRate);
+    } catch (boost::system::system_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
+    }
+    std::cout << "Sending data on port " << port << " at " << baudRate << " baud." << std::endl;
 
-    // Write a message to the serial port
-    std::string message = "Hello, world!";
-    boost::asio::write(serial, boost::asio::buffer(message));
+    // Initialize random seed
+    std::srand(25);
+    while (true) {
+        try {
+            float val1 = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX / 100.0);  // Random between 0 and 100
+            float val2 = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX / 100.0);
+            float val3 = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX / 100.0);
+            sendPacket(serial, val1, val2, val3);
 
-    // Read a message from the serial port
-    std::vector<char> buffer(100);
-    size_t bytesRead = serial.read_some(boost::asio::buffer(buffer));
+            // Print sent data for debugging
+            std::cout << "Sent: " << val1 << ", " << val2 << ", " << val3 << std::endl;
 
-    // Print the received message
-    std::cout << "Received: " << std::string(buffer.begin(), buffer.begin() + bytesRead) << std::endl;
+            // Sleep for a while before sending the next packet
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000));  // Send every 1 second
+        } catch (boost::system::system_error& e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return 1;
+        }
+    }
 
     return 0;
 }
