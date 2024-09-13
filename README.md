@@ -20,10 +20,18 @@ Here, the `streaming` includes
 #### JSON C++: Json data (over UDP)
 - already shipped with this repository.
 
+#### Boost: Serial packet (over USB serial)
+- Windows: follow [this instruction](https://www.boost.org/doc/libs/1_85_0/more/getting_started/windows.html)
+- Ubuntu Linux: `sudo apt install libboost-all-dev`
+
+
 ## Motion capture
 > [!NOTE]
-> - Tested on Windows10
+> - Tested on Windows
 > - supported system: [OptiTrack](https://optitrack.com/)'s [Motive](https://optitrack.com/software/motive/)
+
+<details>
+<summary> <b> Details... </b></summary>
 
 ### Build
 #### Windows
@@ -50,10 +58,15 @@ cmake --build . --config Release
   - Linux: `./motion_capture/build/Release/OptitrackStreaming` (WIP)
 - log files will be saved at `<project_root>/logs/motion_capture/<correspondence>`
 - date and time is used as correspondence
+</details>
+
 
 ## Json data over UDP
 > [!NOTE]
-> - Tested on Windows10
+> - Tested on Windows
+
+<details>
+<summary> <b> Details... </b></summary>
 
 ### build (C++)
 #### Windows
@@ -80,3 +93,35 @@ cmake --build . --config Release
 - No need to build anything.
 - Simply call `python3 ./udp_json_stream/scripts/listener.py [--ip <ip>] [--port <port>]`
 - You can test it by running sample talker `python3 ./udp_json_stream/scripts/sample_talker [--ip <ip>] [--port <port>]` on another terminal.
+</details>
+
+
+## Serial packet over USB
+> [!NOTE]
+> - Tested on Windows
+
+<details>
+<summary> <b> Details... </b></summary>
+
+### build (C++)
+#### Windows
+```shell
+cd serial_packet_stream
+mkdir build
+cd build
+cmake -G "Visual Studio 17 2022" -A x64 ..
+cmake --build . --config Release
+```
+- Then, the **executible**s will be located at `serial_packet_stream/build/Release`, i.e., `SerialPacketStreaming_parser.exe`
+
+#### Ubuntu Linux
+Since we are using cross-platform library, i.e., Boost, analogous process should work, as long as prerequisites are satisfied and C++ build essentials are installed.
+```shell
+cd serial_packet_stream
+mkdir build
+cd build
+cmake ..
+cmake --build . --config Release
+```
+
+</details>
