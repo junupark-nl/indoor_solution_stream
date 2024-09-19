@@ -48,7 +48,7 @@ int main(int argc, char* argv[]) {
     std::cout << "Sending data on port " << port << " at " << baudRate << " baud." << std::endl;
 
     // Initialize random seed
-    std::srand(25);
+    std::srand(0);
     while (true) {
         try {
             float val1 = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX / 100.0);  // Random between 0 and 100
@@ -56,11 +56,10 @@ int main(int argc, char* argv[]) {
             float val3 = static_cast<float>(std::rand()) / static_cast<float>(RAND_MAX / 100.0);
             sendPacket(serial, val1, val2, val3);
 
-            // Print sent data for debugging
+#ifdef VERBOSE
             std::cout << "Sent: " << val1 << ", " << val2 << ", " << val3 << std::endl;
-
-            // Sleep for a while before sending the next packet
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000));  // Send every 1 second
+#endif
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Send every 1 second
         } catch (boost::system::system_error& e) {
             std::cerr << "Error: " << e.what() << std::endl;
             return 1;
