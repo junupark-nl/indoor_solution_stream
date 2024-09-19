@@ -2,6 +2,7 @@
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 
+#define VERBOSE
 namespace util {
 
 typedef union {
@@ -12,15 +13,28 @@ typedef union {
 std::vector<uint8_t> floatToBytes(float value) {
     FloatUnion u;
     u.f = value;
+#ifdef BIG_ENDIAN
+    return std::vector<uint8_t>(u.b + 4, u.b);
+#else // Little endian, default
     return std::vector<uint8_t>(u.b, u.b + 4);
+#endif
 }
 
 float bytesToFloat(const std::vector<uint8_t>& bytes, int start) {
     FloatUnion u;
+
+#ifdef BIG_ENDIAN
+    u.b[0] = bytes[start + 3];
+    u.b[1] = bytes[start + 2];
+    u.b[2] = bytes[start + 1];
+    u.b[3] = bytes[start];
+#else // Little endian, default
     u.b[0] = bytes[start];
     u.b[1] = bytes[start + 1];
     u.b[2] = bytes[start + 2];
     u.b[3] = bytes[start + 3];
+#endif
+
     return u.f;
 }
 
@@ -32,7 +46,6 @@ uint8_t calculateChecksum(const std::vector<uint8_t>& data) {
     }
     return checksum;
 }
-
 
 void setupSerialPort(boost::asio::io_service& io, boost::asio::serial_port& serial, const std::string& port, unsigned int baudRate) {
     serial.open(port);
