@@ -83,6 +83,15 @@ int main(int argc, char* argv[])
     
     ErrorCode ret = ErrorCode_OK;
 
+    // Parse command-line arguments
+    bool is_remote = false;
+    for (int i = 1; i < argc; i++) {
+        std::string arg = argv[i];
+        if (arg == "--remote") {
+            is_remote = true;
+        }
+    }
+
     // Create a NatNet client
     g_pClient = new NatNetClient();
 
@@ -90,8 +99,14 @@ int main(int argc, char* argv[])
     ret = g_pClient->SetFrameReceivedCallback(DataHandler, g_pClient);	
 
     // Specify client PC's IP address, Motive PC's IP address, and network connection type
-    g_connectParams.localAddress = "127.0.0.1";
-    g_connectParams.serverAddress = "127.0.0.1";
+    if (!is_remote) {
+        g_connectParams.localAddress = "127.0.0.1";
+        g_connectParams.serverAddress = "127.0.0.1";
+        std::cout << "Connecting to Motive on the same PC." << std::endl;
+    } else {
+        g_connectParams.serverAddress = "192.168.0.26";
+        std::cout << "Connecting to Motive on a remote PC." << std::endl;
+    }
     g_connectParams.connectionType = ConnectionType_Multicast;
 
     // Connect to Motive
