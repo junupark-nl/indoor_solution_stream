@@ -36,7 +36,7 @@ std::string get_current_timestamp_filename(const std::string &relative_base_dir=
 }
 
 void readSerial(boost::asio::serial_port& serial, std::ofstream& csvFile) {
-    std::vector<uint8_t> buffer(15);  // 14 bytes + 1 for checksum
+    std::vector<uint8_t> buffer(util::packet_size);
     boost::asio::read(serial, boost::asio::buffer(buffer, 1));  // Read one byte at a time
 
     if (buffer[0] == 0x59) {
@@ -44,23 +44,26 @@ void readSerial(boost::asio::serial_port& serial, std::ofstream& csvFile) {
 
         if (buffer[1] == 0x35) {
             auto arrivalTime = std::chrono::steady_clock::now();
-            boost::asio::read(serial, boost::asio::buffer(buffer.data() + 2, 13));
+            boost::asio::read(serial, boost::asio::buffer(buffer.data() + 2, util::packet_size - 2));
 
             float x = util::bytesToFloat(buffer, 2);
             float y = util::bytesToFloat(buffer, 6);
             float z = util::bytesToFloat(buffer, 10);
+#ifdef CHECKSUM
             uint8_t receivedChecksum = buffer[14];
             uint8_t calculatedChecksum = util::calculateChecksum(std::vector<uint8_t>(buffer.begin(), buffer.end() - 1));
-
             if (receivedChecksum == calculatedChecksum) {
+#endif
                 auto micros = std::chrono::duration_cast<std::chrono::microseconds>(arrivalTime.time_since_epoch()).count();
                 csvFile << micros << "," << x << "," << y << "," << z << std::endl;
 #ifdef VERBOSE
                 std::cout << "Data: " << x << ", " << y << ", " << z << " | micros: " << micros << " ms" << std::endl;
 #endif
+#ifdef CHECKSUM
             } else {
                 std::cerr << "Checksum error!" << std::endl;
             }
+#endif
         }
     }
 }

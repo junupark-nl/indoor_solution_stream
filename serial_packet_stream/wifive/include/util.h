@@ -3,7 +3,15 @@
 #include <boost/bind.hpp>
 
 #define VERBOSE
+#define CHECKSUM
+
 namespace util {
+
+#ifdef CHECKSUM
+const int packet_size = 15;  // 14 bytes + 1 for checksum
+#else
+const int packet_size = 14;
+#endif
 
 typedef union {
     float f;

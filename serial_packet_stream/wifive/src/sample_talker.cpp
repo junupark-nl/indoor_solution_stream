@@ -20,9 +20,11 @@ void sendPacket(boost::asio::serial_port& serial, float val1, float val2, float 
     packet.insert(packet.end(), bytesVal2.begin(), bytesVal2.end());
     packet.insert(packet.end(), bytesVal3.begin(), bytesVal3.end());
 
+#ifdef CHECKSUM
     // Calculate checksum (excluding the checksum byte itself)
     uint8_t checksum = util::calculateChecksum(packet);
     packet.push_back(checksum);
+#endif
 
     // Send packet through serial port
     boost::asio::write(serial, boost::asio::buffer(packet));
