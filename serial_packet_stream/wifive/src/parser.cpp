@@ -82,7 +82,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
-    std::string csv_filename = get_current_timestamp_filename("../../../../logs/serial_packet_wifive");
+    std::string csv_filename = get_current_timestamp_filename("../../../../logs/serial_packet/wifive");
     std::cout << "Listening on port " << port << " at " << baudRate << " baud." << std::endl;
     std::cout << "CSV filename: " << csv_filename << std::endl;
 
