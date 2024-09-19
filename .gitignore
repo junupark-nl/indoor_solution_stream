@@ -1,6 +1,6 @@
 *.csv
 *.CSV
-!logs/quuppa test/**/*.csv
+!logs/tests/**/*.csv
 
 build/
 **/build*
