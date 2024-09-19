@@ -28,7 +28,7 @@ Here, the `streaming` includes
 ## Motion capture
 > [!NOTE]
 > - Tested on Windows
-> - supported system: [OptiTrack](https://optitrack.com/)'s [Motive](https://optitrack.com/software/motive/)
+> - Currently supported system: [OptiTrack](https://optitrack.com/)'s [Motive](https://optitrack.com/software/motive/)
 
 <details>
 <summary> <b> Details... </b></summary>
@@ -54,10 +54,12 @@ cmake --build . --config Release
 ### Usage
 - Build the project.
 - Execute it as
-  - Windows: `./motion_capture/build/Release/OptitrackStreaming.exe`
-  - Linux: `./motion_capture/build/Release/OptitrackStreaming` (WIP)
-- log files will be saved at `<project_root>/logs/motion_capture/<correspondence>`
-- date and time is used as correspondence
+  - Windows: `./motion_capture/build/Release/OptitrackStreaming.exe [--remote]`
+  - Linux: `./motion_capture/build/Release/OptitrackStreaming  [--remote]` (WIP)
+- `--remote` flag indicates that the executible is running on **non-Host machine**, such as laptop.
+  - you should set Motive to stream its frame data to `designated IP address`: ask to [junwoo park](mailto:junwoo.park@nearthlab.com).
+- Log files will be saved at `<project_root>/logs/motion_capture/<correspondence>`.
+- Date/Time is used as correspondence.
 </details>
 
 
@@ -88,10 +90,12 @@ cmake --build . --config Release
   - Windows: `./UdpJsonStreaming_listener.exe <ip> <port>`
   - Linux: `./UdpJsonStreaming_listener <ip> <port>` (WIP)
 - You can test it by running sample talker `./UdpJsonStreaming_talker[.exe] <ip> <port>` on another terminal.
+- Log files will be saved at `<project_root>/logs/json_udp/<correspondence>`.
+- Date/Time is used as correspondence.
 
 #### Python
 - No need to build anything.
-- Simply call `python3 ./udp_json_stream/scripts/listener.py [--ip <ip>] [--port <port>]`
+- Simply call `python3 ./udp_json_stream/scripts/listener.py [--ip <ip>] [--port <port>]`.
 - You can test it by running sample talker `python3 ./udp_json_stream/scripts/sample_talker [--ip <ip>] [--port <port>]` on another terminal.
 </details>
 
@@ -99,6 +103,7 @@ cmake --build . --config Release
 ## Serial packet over USB
 > [!NOTE]
 > - Tested on Windows
+> - Currently supported vendor(s): [Wifive](http://www.wifive.co.kr/).
 
 <details>
 <summary> <b> Details... </b></summary>
@@ -107,12 +112,12 @@ cmake --build . --config Release
 #### Windows
 ```shell
 cd serial_packet_stream
-mkdir build
-cd build
+mkdir -p <vendor>/build
+cd <vendor>/build
 cmake -G "Visual Studio 17 2022" -A x64 ..
 cmake --build . --config Release
 ```
-- Then, the **executible**s will be located at `serial_packet_stream/build/Release`, i.e., `SerialPacketStreaming_parser.exe`
+- Then, the **executible**s will be located at `serial_packet_stream/<vendor>build/Release`, i.e., `SerialPacketStreaming_parser.exe`
 
 #### Ubuntu Linux
 Since we are using cross-platform library, i.e., Boost, analogous process should work, as long as prerequisites are satisfied and C++ build essentials are installed.
@@ -123,5 +128,15 @@ cd build
 cmake ..
 cmake --build . --config Release
 ```
+
+### Usage
+- Build the project.
+- Execute it as
+  - Windows: `./serial_packet_stream/<vendor>/build/Release/SerialPacketStreaming_parser.exe <device> <baud_rate>`
+  - Linux: `./serial_packet_stream/<vendor>/build/Release/SerialPacketStreaming_parser <device> <baud_rate>` (WIP)
+- For instance, `./SerialPacketStreaming_parser.exe COM4 921600` on Windows.
+- You can test it by running sample talker `./serial_packet_stream/<vendor>/build/Release/SerialPacketStreaming_talker[.exe] <device> <baud_rate>` on another terminal.
+- Log files will be saved at `<project_root>/logs/serial_packet/<vendor>/<correspondence>`.
+- Date/Time is used as correspondence.
 
 </details>
