@@ -1,4 +1,5 @@
 import os
+import glob
 import pandas as pd
 import matplotlib.pyplot as plt
 import ast
@@ -12,8 +13,12 @@ def translate_mocap_data(x, y, z):
     return 6-x, z+5, y
 
 # Read the CSV file
-df_mocap = pd.read_csv(os.path.join(os.getcwd(), args.directory, 'rigid_body_sentinel.csv'))
+rigid_file = glob.glob(os.path.join(os.getcwd(), args.directory, 'rigid_*.csv'))
+assert len(rigid_file) == 1, 'There should be only one rigid body tracking file'
+df_mocap = pd.read_csv(rigid_file[0])
 df_ble = pd.read_csv(os.path.join(os.getcwd(), args.directory, 'ble.csv'))
+df_ble = df_ble[df_ble['tagName'].str.match(r'^TEST\d*$')]
+# df_ble = df_ble[df_ble['tagName'].str.match(r'^Nearth_000\d*$')]
 
 df_mocap['X'], df_mocap['Y'], df_mocap['Z'] = translate_mocap_data(df_mocap['X'], df_mocap['Y'], df_mocap['Z'])
     
@@ -23,11 +28,16 @@ t_ble = df_ble['ArrivalTimeUs'] / 1e6
 
 # Convert the location string to a list and extract x, y, z coordinates, and append them to the DataFrame
 df_ble[['x', 'y', 'z']] = df_ble['location'].apply(ast.literal_eval).tolist()
-df_ble['tag'] = df_ble['tagName'].str.extract('(\d+)$').astype(int)
+df_ble['tag'] = df_ble['tagName']
 
 # Separate data into different DataFrames based on tag number
 tag_dataframes = {}
 tags = sorted(df_ble['tag'].unique())
+if 'flight' in args.directory:
+    # Hand held-tag = TEST
+    # Flight-tag = TEST1, TEST2, ...
+    tags = tags[1:]
+    
 for tag in tags:
     tag_data = df_ble[df_ble['tag'] == tag]
     
@@ -40,7 +50,7 @@ for tag in tags:
 
 # Create the plot
 coordinates = ['X', 'Y', 'Z']
-fig, axes = plt.subplots(len(tags), 1, figsize=(12, 8))
+fig, axes = plt.subplots(len(coordinates), 1, figsize=(12, 8))
 fig.suptitle('Location vs. Time')
 
 for i, axis in enumerate(axes):

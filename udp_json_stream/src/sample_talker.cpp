@@ -90,7 +90,7 @@ void udp_sample_talker(const std::string& ip, int port) {
         json message = create_dummy_message();
         std::string json_message = message.dump();
 
-        int sent = sendto(sock, json_message.c_str(), json_message.length(), 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
+        int sent = sendto(sock, json_message.c_str(), static_cast<int>(json_message.length()), 0, (struct sockaddr*)&server_addr, sizeof(server_addr));
 
         if (sent == SOCKET_ERROR_CODE) {
             std::cerr << "Failed to send\n";
